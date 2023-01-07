@@ -1,0 +1,144 @@
+Source 192.168.161.129:
+-----------------------
+mysql -u root -p
+--pass: MyRoot!23
+
+SHOW DATABASES;
+SELECT User, Host FROM mysql.user;
+CREATE DATABASE etl_test;
+USE etl_test;
+
+CREATE USER 'etl_test'@'192.168.193.1' IDENTIFIED BY 'etl_test';
+GRANT ALL PRIVILEGES ON etl_test.* TO 'etl_test'@'192.168.193.1';
+FLUSH PRIVILEGES;
+
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'etl_test';
+
+Destination 192.168.161.130:
+----------------------------
+yum module list | grep postgresql
+
+yum install @postgresql:12
+
+--for debian
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get -y install postgresql-12
+
+postgresql-setup --initdb
+
+passwd postgres
+--pass: postgres
+
+systemctl start postgresql ## <-- start the server ##
+systemctl stop postgresql ## <-- stop the server ##
+systemctl restart postgresql ## <-- resstart the server ##
+systemctl status postgresql ## <-- get status of the server ##
+systemctl enable postgresql
+
+--pass set for DATABASE
+sudo -i -u postgres
+psql
+\password postgres
+
+--PG config file
+vi /var/lib/pgsql/data/pg_hba.conf
+
+    #IPv4 Addresses
+    host all all 0.0.0.0/0 md5
+    #IPv6 Addresses
+    host all all ::0/0 md5
+
+--PG config file
+vi /var/lib/pgsql/data/postgresql.conf
+    # - Connection Settings -
+
+    listen_addresses = '*'		# what IP address(es) to listen on;
+                        # comma-separated list of addresses;
+                        # defaults to 'localhost'; use '*' for all
+                        # (change requires restart)
+    port = 5432				# (change requires restart)
+
+[root@ahosan1 ~]# systemctl restart postgresql
+[root@ahosan1 ~]# systemctl status postgresql
+
+---user and database create for postgresql
+postgres=# create database etl_test;
+postgres=# create user etl_test with encrypted password 'etl_test';
+postgres=# grant all privileges on database etl_test to etl_test;
+
+--An example of How to Create Table in PostgreSQL
+CREATE TABLE phonebook(phone VARCHAR(32), firstname VARCHAR(32), lastname VARCHAR(32), address VARCHAR(64));
+INSERT INTO phonebook(phone, firstname, lastname, address) VALUES('01776817626', 'Ahosan', 'Habib', 'Dhaka');
+SELECT * FROM phonebook ORDER BY lastname;
+SELECT * FROM phonebook WHERE lastname = 'Habib';
+SELECT * FROM phonebook WHERE firstname = 'Ahosan' AND lastname = 'Habib';
+UPDATE phonebook SET address = 'Dhaka', phone = '01776817626' WHERE firstname = 'Ahosan' AND lastname = 'Habib';
+DELETE FROM phonebook WHERE firstname = 'Ahosan' AND lastname = 'Habib';
+
+----------------pyhton to mysql&PG connection setup-----------
+python -m pip install --upgrade pip
+pip install SQLAlchemy
+pip install psycopg2
+pip install pandas
+pip install mysqldb
+
+--load data to mysql
+mysql> use etl_test;
+mysql> source /mysql/airflow/mysqlsampledatabase.sql;
+
+--mysql table name check
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'etl_test';
+select * from etl_test.orderdetails;
+select count(*) from etl_test.customers;
+select count(*) from etl_test.employees;
+select count(*) from etl_test.offices;
+select count(*) from etl_test.orderdetails;
+select count(*) from etl_test.orders;
+select count(*) from etl_test.payments;
+select count(*) from etl_test.productlines;
+select count(*) from etl_test.products;
+
+--PG table name check
+select * from public.ahosan_customers;
+select count(*) from public.ahosan_customers;
+
+--------------------------------------Air flow install------------------------------
+--on ubuntu
+https://unixcop.com/how-to-install-apache-airflow-on-ubuntu-20/
+--on docker
+https://towardsdatascience.com/run-airflow-docker-1b83a57616fb
+
+--by docker
+mkdir /AirFlow
+cd /AirFlow
+
+--create this yaml file
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/2.3.0/docker-compose.yaml'
+
+mkdir ./dags ./logs ./plugins
+
+echo -e "AIRFLOW_UID=$(id -u)\nAIRFLOW_GID=0" > .env
+cat .env
+
+--initialize the airflow
+docker compose version
+docker compose up airflow-init
+
+--start airflow
+docker compose up
+--instance check
+docker ps
+
+--access GUI
+192.168.161.130:8080
+
+--go Airflow Worker container
+docker exec -it d40cc01260e4 bash
+    airflow version
+
+--Deleting/Cleaning up the mess/images
+docker compose down --volumes --rmi all
+
